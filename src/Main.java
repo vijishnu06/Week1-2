@@ -1,63 +1,82 @@
 import java.util.*;
 
-class week1 {
+class DNSEntry {
+    String ipAddress;
+    long expiryTime;
 
-    // productId -> stock count
-    private HashMap<String, Integer> inventory = new HashMap<>();
-
-    // productId -> waiting list (FIFO)
-    private HashMap<String, Queue<Integer>> waitingList = new HashMap<>();
-
-    public FlashSaleInventory() {
-        inventory.put("IPHONE15_256GB", 100);
-        waitingList.put("IPHONE15_256GB", new LinkedList<>());
+    DNSEntry(String ipAddress, long ttlSeconds) {
+        this.ipAddress = ipAddress;
+        this.expiryTime = System.currentTimeMillis() + (ttlSeconds * 1000);
     }
 
-    // Check stock
-    public int checkStock(String productId) {
-        return inventory.getOrDefault(productId, 0);
-    }
-
-    // Purchase item (thread-safe)
-    public synchronized String purchaseItem(String productId, int userId) {
-
-        int stock = inventory.getOrDefault(productId, 0);
-
-        if (stock > 0) {
-            inventory.put(productId, stock - 1);
-            return "Success, " + (stock - 1) + " units remaining";
-        }
-        else {
-            Queue<Integer> queue = waitingList.get(productId);
-            queue.add(userId);
-            return "Added to waiting list, position #" + queue.size();
-        }
-    }
-
-    // Display waiting list
-    public void showWaitingList(String productId) {
-        System.out.println("Waiting List: " + waitingList.get(productId));
+    boolean isExpired() {
+        return System.currentTimeMillis() > expiryTime;
     }
 }
 
-public class week{
+class DNSCache {
 
-    public static void main(String[] args) {
+    private final int MAX_SIZE = 5;
 
-        FlashSaleInventory system = new FlashSaleInventory();
+    private LinkedHashMap<String, DNSEntry> cache =
+            new LinkedHashMap<String, DNSEntry>(MAX_SIZE, 0.75f, true) {
+                protected boolean removeEldestEntry(Map.Entry<String, DNSEntry> eldest) {
+                    return size() > MAX_SIZE;
+                }
+            };
 
-        System.out.println("Stock: " + system.checkStock("IPHONE15_256GB"));
+    private int hits = 0;
+    private int misses = 0;
 
-        System.out.println(system.purchaseItem("IPHONE15_256GB", 12345));
-        System.out.println(system.purchaseItem("IPHONE15_256GB", 67890));
+    // Simulated upstream DNS lookup
+    private String queryUpstream(String domain) {
+        return "172.217.14." + new Random().nextInt(255);
+    }
 
-        // simulate stock exhaustion
-        for(int i = 0; i < 100; i++) {
-            system.purchaseItem("IPHONE15_256GB", i);
+    public String resolve(String domain, int ttlSeconds) {
+
+        DNSEntry entry = cache.get(domain);
+
+        if (entry != null && !entry.isExpired()) {
+            hits++;
+            return "Cache HIT → " + entry.ipAddress;
         }
 
-        System.out.println(system.purchaseItem("IPHONE15_256GB", 99999));
+        misses++;
 
-        system.showWaitingList("IPHONE15_256GB");
+        String ip = queryUpstream(domain);
+        cache.put(domain, new DNSEntry(ip, ttlSeconds));
+
+        if (entry != null && entry.isExpired()) {
+            return "Cache EXPIRED → Query upstream → " + ip;
+        }
+
+        return "Cache MISS → Query upstream → " + ip;
+    }
+
+    public void getCacheStats() {
+        int total = hits + misses;
+        double hitRate = total == 0 ? 0 : (hits * 100.0 / total);
+
+        System.out.println("Hits: " + hits);
+        System.out.println("Misses: " + misses);
+        System.out.println("Hit Rate: " + hitRate + "%");
+    }
+}
+
+public class week {
+
+    public static void main(String[] args) throws Exception {
+
+        DNSCache cache = new DNSCache();
+
+        System.out.println(cache.resolve("google.com", 5));
+        System.out.println(cache.resolve("google.com", 5));
+
+        Thread.sleep(6000); // simulate TTL expiry
+
+        System.out.println(cache.resolve("google.com", 5));
+
+        cache.getCacheStats();
     }
 }
