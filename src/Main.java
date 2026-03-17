@@ -1,82 +1,70 @@
 import java.util.*;
 
-class DNSEntry {
-    String ipAddress;
-    long expiryTime;
+class week1 {
 
-    DNSEntry(String ipAddress, long ttlSeconds) {
-        this.ipAddress = ipAddress;
-        this.expiryTime = System.currentTimeMillis() + (ttlSeconds * 1000);
+
+    private HashMap<String, Integer> users = new HashMap<>();
+
+
+    private HashMap<String, Integer> attempts = new HashMap<>();
+
+    public UsernameChecker() {
+        users.put("john_doe", 1);
+        users.put("admin", 2);
+        users.put("user123", 3);
     }
 
-    boolean isExpired() {
-        return System.currentTimeMillis() > expiryTime;
+
+    public boolean checkAvailability(String username) {
+        attempts.put(username, attempts.getOrDefault(username, 0) + 1);
+        return !users.containsKey(username);
+    }
+
+
+    public List<String> suggestAlternatives(String username) {
+        List<String> suggestions = new ArrayList<>();
+
+        for (int i = 1; i <= 3; i++) {
+            String suggestion = username + i;
+            if (!users.containsKey(suggestion)) {
+                suggestions.add(suggestion);
+            }
+        }
+
+        if (!users.containsKey(username + ".")) {
+            suggestions.add(username + ".");
+        }
+
+        return suggestions;
+    }
+
+
+    public String getMostAttempted() {
+        String maxUser = "";
+        int maxCount = 0;
+
+        for (Map.Entry<String, Integer> entry : attempts.entrySet()) {
+            if (entry.getValue() > maxCount) {
+                maxCount = entry.getValue();
+                maxUser = entry.getKey();
+            }
+        }
+
+        return maxUser + " (" + maxCount + " attempts)";
     }
 }
 
-class DNSCache {
+public class week{
+    public static void main(String[] args) {
 
-    private final int MAX_SIZE = 5;
+        UsernameChecker checker = new UsernameChecker();
 
-    private LinkedHashMap<String, DNSEntry> cache =
-            new LinkedHashMap<String, DNSEntry>(MAX_SIZE, 0.75f, true) {
-                protected boolean removeEldestEntry(Map.Entry<String, DNSEntry> eldest) {
-                    return size() > MAX_SIZE;
-                }
-            };
+        System.out.println("Check john_doe: " + checker.checkAvailability("john_doe"));
+        System.out.println("Check jane_smith: " + checker.checkAvailability("jane_smith"));
 
-    private int hits = 0;
-    private int misses = 0;
+        System.out.println("Suggestions for john_doe:");
+        System.out.println(checker.suggestAlternatives("john_doe"));
 
-    // Simulated upstream DNS lookup
-    private String queryUpstream(String domain) {
-        return "172.217.14." + new Random().nextInt(255);
-    }
-
-    public String resolve(String domain, int ttlSeconds) {
-
-        DNSEntry entry = cache.get(domain);
-
-        if (entry != null && !entry.isExpired()) {
-            hits++;
-            return "Cache HIT → " + entry.ipAddress;
-        }
-
-        misses++;
-
-        String ip = queryUpstream(domain);
-        cache.put(domain, new DNSEntry(ip, ttlSeconds));
-
-        if (entry != null && entry.isExpired()) {
-            return "Cache EXPIRED → Query upstream → " + ip;
-        }
-
-        return "Cache MISS → Query upstream → " + ip;
-    }
-
-    public void getCacheStats() {
-        int total = hits + misses;
-        double hitRate = total == 0 ? 0 : (hits * 100.0 / total);
-
-        System.out.println("Hits: " + hits);
-        System.out.println("Misses: " + misses);
-        System.out.println("Hit Rate: " + hitRate + "%");
-    }
-}
-
-public class week {
-
-    public static void main(String[] args) throws Exception {
-
-        DNSCache cache = new DNSCache();
-
-        System.out.println(cache.resolve("google.com", 5));
-        System.out.println(cache.resolve("google.com", 5));
-
-        Thread.sleep(6000); // simulate TTL expiry
-
-        System.out.println(cache.resolve("google.com", 5));
-
-        cache.getCacheStats();
+        System.out.println("Most Attempted: " + checker.getMostAttempted());
     }
 }
